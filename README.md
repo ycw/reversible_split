@@ -1,2 +1,3 @@
 # reversible_split
-proposal
+
+https://ycw.github.io/reversible_split/

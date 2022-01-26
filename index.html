@@ -1,0 +1,133 @@
+<meta charset='utf-8'>
+<title>reversible_split</title>
+
+<!-- polyfill `String.raw` for Opera -->
+<script src='string_raw.js'></script>
+<!-- proposal POC -->
+<script src='reversible_split.js'></script>
+<!-- tests -->
+<script src='quick_test.js'></script>
+
+
+<style>
+  body { width: 100ch; }
+</style>
+
+
+
+<h1>reversible_split</h1>
+<p>
+  <a href='https://github.com/ycw/reversible_split'>repo</a> 
+  @2022-01-26 
+  by <a href='https://twitter.com/ycwhk'>ycw</a>
+</p>
+
+<h2>Proposal</h2>
+
+<p>
+  Part 1: 
+  Create a 
+  <a href='https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol/split'>splitter</a>
+  class `String.SplitN`, which accpets two params, separator (string or regexp) and max_count. 
+  
+  When `String.prototype.split` is called with `String.SplitN` instance,  
+  it'll return a string array holding "items" (at most max_count, included "reminder"); 
+  info of "separators" and "captured groups" will be exposed by two individual arrays:
+
+  <blockquote><pre><code>
+    let sp = new String.SplitN(',', 3)  // split by comma, at most 3 items
+    let items = 'a,e,i,o,u'.split(sp)   // ['a', 'e', 'i,o,u']
+    items.separators                    // [',', ',']
+    items.groups                        // []
+  </code></pre></blockquote>
+
+  Part 2: Augment `Array.prototyp.join` to accept string Array
+
+  <blockquote><pre><code>
+    // --- pseudo 
+    
+    fn join(items, seps)
+      out = ''
+      for each (i, item) in items
+        out += item 
+        if seps.length > i 
+          out += seps[i]
+      return out
+
+    // --- impl 
+    
+    Array.prototype.join = function (sep) {
+      return Array.isArray(sep) 
+        ? <a href='./string_raw.js'>String.raw</a>({ raw: this }, ...sep)
+        : ... <a href='./reversible_split.js'>skipped</a> ...
+        ;
+    }
+  </code></pre></blockquote>
+
+  It works in a way like:
+
+  <blockquote><pre><code>
+    [1, 3, 56789].join([2, 4])          // '123456789'
+    items.join(items.separators)        // 'a,e,i,o,u'
+  </code></pre></blockquote>
+
+  With Part1 and Part2, it now statisfies: 
+  <blockquote><pre><code>
+    for all str (string) 
+        all sep (string|regexp)
+        all n   (>=1) 
+
+    "split(str, sep, n) -> X"
+    "join(X) -> str"    
+    
+    == 
+    
+    "join(split(str, sep, n)) -> str" 
+  </code></pre></blockquote>
+
+  Prove
+  <blockquote><pre><code>
+    let split = (str, sep, n) => str.split(new String.SplitN(sep, n)) // X
+    let join = (X) => X.join(X.separators) 
+
+    let str = 'a,e,i,o,u'                // any string
+    let sep = ''                         // any string|regexp
+    let n   = 3                          // any num >= 1
+    join(split(str, sep, n)) === str     // always true
+  </code></pre></blockquote>
+
+Note: 
+
+<ul>
+  <li>
+    `items.join(items.separators)` is always reversible for any `separator`
+  </li>
+  <li>
+    `items.join(items.groups)` is always reversible for <b>string</b> `separator`
+  </li>
+  <li>
+    `items.join(items.groups)` maybe <b>irreversible</b> for regexp `separator`
+  </li>
+</ul>
+
+Ex.
+<blockquote><pre><code>
+let str = `a, e,, i, o,  u`
+let sep = /\s*(,),*\s*/ 
+let sp  = new String.SplitN(sep) 
+let items = str.split(sp)
+
+console.log(items)                  // ['a', 'e', 'i', 'o', 'u']
+console.log(items.groups)           // [',', ',', ',', ',']
+
+let str2 = items.join(items.groups)
+console.log(str2)                   // 'a,e,i,o,u'
+console.assert(str2 !== str)        // <b>irreversible</b>
+</code></pre></blockquote>
+<br>
+<hr>
+
+<p>
+  This page had loaded the reversible_split poc, you might try the API directly
+  in web console.
+</p>
